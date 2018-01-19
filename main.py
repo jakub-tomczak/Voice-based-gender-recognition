@@ -9,14 +9,19 @@ from matplotlib.pyplot import stem
 debug = 1
 
 class SoundFile:
-    name = ""   #filename with path
-    filename = "" #filename without path
-    number = -1
-    sex = None
-    predicted_sex = None
-    sound_data = []
-    sound_fft = []
-    samplerate = 0
+    beta = 14
+    cut_lower_bound = 80
+    cut_upper_bound = 1280
+
+    def __init__(self):
+        self.name = ""   #filename with path
+        self.filename = "" #filename without path
+        self.number = -1
+        self.sex = None
+        self.predicted_sex = None
+        self.sound_data = []
+        self.sound_fft = []
+        self.samplerate = 0
 
     def process_filename(self, filename, directory = None, labeled = True):
         if directory != None:
@@ -27,18 +32,28 @@ class SoundFile:
             self.sex = self.filename[4:5]
             self.number = int(self.filename[0:3])
 
+    def apply_kaiser(self):
+        self.sound_data = self.sound_data * np.kaiser(len(self.sound_data), SoundFile.beta)
+
     def load_sound(self):
         data, samplerate = sf.read(self.name)
         if type(data[0]) in (tuple, list, np.ndarray):
             self.sound_data = [x[0] for x in data[:]] #wez tylko pierwszy kanal
             self.sound_data = self.sound_data[::100]
-        print(self.filename + " załadowano.")
+        elif type(data[0]) is np.float64:
+            self.sound_data = data[::100]
 
-    def fft_with_cut(self, display=False, lower_bound=70, upper_bound=250):
-        self.sound_fft = abs(np.fft.fft(self.sound_data))[lower_bound:upper_bound]
+        if len(self.sound_data) == 0:
+            raise Exception("Nie udało się pobrać próbek")
+        self.apply_kaiser()
+        print(self.filename + " załadowano. {len}".format(len = len(self.sound_data)) )
+
+    def fft_with_cut(self, display=False, lower_bound=cut_lower_bound, upper_bound=cut_upper_bound):
+        self.sound_fft = abs(np.fft.fft(self.sound_data))[lower_bound:upper_bound+1]
 
         if display:
             display_stem(self, abs_sig=False, lower_bound=lower_bound)
+
 
 def get_fig(fig_size = (15,6)):
     return plt.figure(figsize=fig_size, dpi = 80)
@@ -63,11 +78,10 @@ def display_stem(sound_object, size = -1, abs_sig = True, lower_bound = 70):
         fig = get_fig((size, size))
     if abs_sig:
         y_data = abs(sound_object.sound_fft)
+    plt.title(sound_object.filename)
     x_data = np.arange(70, 70 + len(sound_object.sound_fft), 1)
     stem(x_data, sound_object.sound_fft, '-*')
     plt.show()
-
-
 
 def try_to_predict_sex(sound_object):
     if type(sound_object) is not SoundFile:
@@ -84,12 +98,19 @@ if __name__ == "__main__":
     if debug:
         data = []
         for file in os.listdir(directory):
-            object = SoundFile()
-            object.process_filename(file, directory)
-            object.load_sound()
-            object.fft_with_cut(True)
-            #data.append(object)
-            break
+            try:
+                object = SoundFile()
+                object.process_filename(file, directory)
+                object.load_sound()
+                object.fft_with_cut(True)
+                #try_to_predict_sex(object)
+                #data.append(object)
+            except Exception as e:
+                if(len(e.args) >= 1):
+                    print("Plik {file}, blad: {err}".format(file = file, err = e.args[0]))
+                else:
+                    print("Plik {file}, nieznany blad.".format(file=file))
+                    raise
 
     else:
         if len(sys.argv) != 2:
@@ -99,7 +120,7 @@ if __name__ == "__main__":
         sound_object = SoundFile()
         sound_object.process_filename(filename = filename, labeled = False)
         sound_object.load_sound()
-        sound_object.fft_with_cut(True)
+        #sound_object.fft_with_cut(True)
 
 
 
