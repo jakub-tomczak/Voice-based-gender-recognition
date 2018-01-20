@@ -71,9 +71,9 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
         raise Exception("Not a sound file")
 
     #liczba próbek dla fft
-    Nfft = 131072   #dobrane empirycznie
-
-    values, frequencies = hps(sound_object, 5, Nfft)
+    Nfft = 262144   #dobrane w testach
+    divider = 5
+    values, frequencies = hps(sound_object, divider, Nfft)
 
     #oblicz najczesciej wystepujaca czestotliwosc - peak
     maxVal = 0
@@ -83,7 +83,7 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
             maxVal = val
             top_freq = freq
 
-    if top_freq < 20 or top_freq > 300:
+    if top_freq < male_frequencies[0] or top_freq > female_frequencies[1]:
         # peak jest poza zakresem meskich i zenskich czestotliwosci, oblicz sume dla meskich i zenskich,
 
         male_freq_sum = 0.0
@@ -105,7 +105,7 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
         if sound_object.predicted_sex == sound_object.sex:
             true_positive += 1
         else:
-            print(sound_object.filename)
+            print("Zle dopasowanie dla pliku: " + sound_object.filename)
 
         sound_object.peak = 0
     else:
@@ -115,6 +115,8 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
         if top_freq < male_frequencies[1] and sound_object.sex == 'M' or top_freq >= female_frequencies[0] and sound_object.sex == 'K':
             #peak jest w dobrym przedziale
             true_positive += 1
+        else:
+            print("Zle dopasowanie dla pliku: " + sound_object.filename)
 
         if top_freq <  male_frequencies[1]:
             sound_object.predicted_sex = 'M'
@@ -167,16 +169,14 @@ if __name__ == "__main__":
                 object = SoundFile()
                 object.process_filename(file, directory)
                 object.load_sound()
-                try_to_predict_sex(object, (70,170), (171,255))
+                try_to_predict_sex(object)#(70,170), (171,255)
                 test_items_count += 1   #licznik wszystkich elementow
             except Exception as e:
                 if(len(e.args) >= 1):
                     print("Plik {file}, blad: {err}".format(file = file, err = e.args[0]))
-                    raise
-
                 else:
                     print("Plik {file}, nieznany blad.".format(file=file))
-                    raise
+                #print(e.__traceback__)
     elif len(sys.argv) == 2:
         try:
             filename = sys.argv[1]
@@ -188,7 +188,6 @@ if __name__ == "__main__":
                 print("Plik {file}, blad: {err}".format(file=filename, err=e.args[0]))
             else:
                 print("Plik {file}, nieznany blad.".format(file=filename))
-                raise
     else:
         print("Błędna liczba parametrów!")
         exit(0)
