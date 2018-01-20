@@ -19,7 +19,6 @@ class SoundFile:
     def __init__(self):
         self.name = ""   #filename with path
         self.filename = "" #filename without path
-        self.number = -1
         self.sex = None
         self.predicted_sex = None
         self.sound_data = np.empty([])
@@ -34,7 +33,8 @@ class SoundFile:
         self.filename = filename.split("\\")[-1]
         if labeled:
             self.sex = self.filename[4:5]
-            self.number = int(self.filename[0:3])
+        else:
+            self.sex = None
 
     def apply_window_function(self):
         self.sound_data = self.sound_data * np.kaiser(len(self.sound_data), 50)
@@ -53,7 +53,7 @@ class SoundFile:
         if(apply_window_function):
             self.apply_window_function()
 
-        print(self.filename + " załadowano. {len}".format(len = len(self.sound_data)) )
+        print(self.filename + " załadowano.")
 
 def display_stem(sound_object, abs_sig = False, lower_bound = SoundFile.cut_lower_bound):
     if abs_sig:
@@ -102,21 +102,24 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
         else:
             sound_object.predicted_sex = 'K'
 
-        if sound_object.predicted_sex == sound_object.sex:
-            true_positive += 1
-        else:
-            print("Zle dopasowanie dla pliku: " + sound_object.filename)
+        #sprawdz poprawnosc klasyfikacji tylko dla olabelowanych
+        if sound_object.sex != None:
+            if sound_object.predicted_sex == sound_object.sex:
+                true_positive += 1
+            else:
+                print("Zle dopasowanie dla pliku: " + sound_object.filename)
 
         sound_object.peak = 0
     else:
         #peak jest wykryty w zakresie ludzkiego glosu
         sound_object.peak = top_freq
 
-        if top_freq < male_frequencies[1] and sound_object.sex == 'M' or top_freq >= female_frequencies[0] and sound_object.sex == 'K':
-            #peak jest w dobrym przedziale
-            true_positive += 1
-        else:
-            print("Zle dopasowanie dla pliku: " + sound_object.filename)
+        if sound_object.sex != None:
+            if top_freq < male_frequencies[1] and sound_object.sex == 'M' or top_freq >= female_frequencies[0] and sound_object.sex == 'K':
+                #peak jest w dobrym przedziale
+                true_positive += 1
+            else:
+                print("Zle dopasowanie dla pliku: " + sound_object.filename)
 
         if top_freq <  male_frequencies[1]:
             sound_object.predicted_sex = 'M'
@@ -160,16 +163,16 @@ if __name__ == "__main__":
     directory = "dataset\\"
     test_items_count = 0
 
-    file_results = open("results.csv", "w")
 
     if len(sys.argv) == 1:
-        data = []
+        file_results = open("results.csv", "w")
         for file in os.listdir(directory):
             try:
                 object = SoundFile()
                 object.process_filename(file, directory)
                 object.load_sound()
                 try_to_predict_sex(object)#(70,170), (171,255)
+                print_results(file_results, object)
                 test_items_count += 1   #licznik wszystkich elementow
             except Exception as e:
                 if(len(e.args) >= 1):
@@ -177,12 +180,18 @@ if __name__ == "__main__":
                 else:
                     print("Plik {file}, nieznany blad.".format(file=file))
                 #print(e.__traceback__)
+
+        file_results.close()
+        print("Podsumowanie: {tr}/{all} : {res}%".format(tr=true_positive, all=test_items_count,
+                                           res=np.floor(true_positive / test_items_count * 100)))
     elif len(sys.argv) == 2:
         try:
             filename = sys.argv[1]
             sound_object = SoundFile()
             sound_object.process_filename(filename = filename, labeled = False)
             sound_object.load_sound()
+            try_to_predict_sex(sound_object)
+            print("Dzwięk z pliku {file} należy do {predicted_sex}.".format(file = sound_object.filename, predicted_sex = "kobiety" if sound_object.predicted_sex == 'K' else "mężczyzny"))
         except Exception as e:
             if (len(e.args) >= 1):
                 print("Plik {file}, blad: {err}".format(file=filename, err=e.args[0]))
@@ -191,9 +200,6 @@ if __name__ == "__main__":
     else:
         print("Błędna liczba parametrów!")
         exit(0)
-
-    file_results.close()
-    print("{tr}/{all} : {res}%".format(tr = true_positive, all = test_items_count, res = np.floor(true_positive / test_items_count * 100) ))
 
 
 
