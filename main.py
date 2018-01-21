@@ -55,7 +55,7 @@ class SoundFile:
         if(apply_window_function):
             self.apply_window_function()
 
-        print(self.filename + " załadowano.")
+        #print(self.filename + " załadowano.")
 
 def display_stem(sound_object, abs_sig = False, lower_bound = SoundFile.cut_lower_bound):
     if abs_sig:
