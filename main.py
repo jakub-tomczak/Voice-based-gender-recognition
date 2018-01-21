@@ -13,8 +13,8 @@ class SoundFile:
     beta = 14
     cut_lower_bound = 50
     cut_upper_bound = 800
-    male_voice_interval = (50, 165)
-    female_voice_interval = (166, 300)
+    male_voice_interval = (50, 160)
+    female_voice_interval = (161, 255)
 
     def __init__(self):
         self.name = ""   #filename with path
@@ -25,6 +25,8 @@ class SoundFile:
         self.sound_fft = []
         self.samplerate = 0
         self.peak = 0
+        self.male_voice_sum = 0
+        self.female_voice_sum = 0
 
     def process_filename(self, filename, directory = None, labeled = True):
         if directory != None:
@@ -71,7 +73,7 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
         raise Exception("Not a sound file")
 
     #liczba próbek dla fft
-    Nfft = 262144   #dobrane w testach
+    Nfft = 524288   #dobrane w testach
     divider = 5
     values, frequencies = hps(sound_object, divider, Nfft)
 
@@ -95,6 +97,8 @@ def try_to_predict_sex(sound_object, male_frequencies = SoundFile.male_voice_int
             if freq > female_frequencies[0] and freq < female_frequencies[1]:
                 # czestotliwosc nalezy do przedzialu dla kobiet
                 female_freq_sum += val
+        sound_object.male_voice_sum = male_freq_sum
+        sound_object.female_voice_sum = female_freq_sum
 
         # stwierdz których sumarycznie jest wiecej
         if male_freq_sum > female_freq_sum:
@@ -155,9 +159,10 @@ def logarithmic_amplify20(value):
     return np.log10(np.abs(value)) * 20
 
 def print_results(file_handle, sound_object):
-    file_results.write("{file};{sex};{predicted};{top_freq};{sample_rate}\n".
+    file_results.write("{file};{sex};{predicted};{top_freq};{sample_rate};{female};{male}\n".
                        format(file=sound_object.filename, sex=sound_object.sex, predicted=sound_object.predicted_sex,
-                              top_freq=sound_object.peak, sample_rate=sound_object.samplerate))
+                              top_freq=sound_object.peak, sample_rate=sound_object.samplerate,
+                              male = sound_object.male_voice_sum, female = sound_object.female_voice_sum))
 
 if __name__ == "__main__":
     directory = "dataset\\"
@@ -171,7 +176,7 @@ if __name__ == "__main__":
                 object = SoundFile()
                 object.process_filename(file, directory)
                 object.load_sound()
-                try_to_predict_sex(object)#(70,170), (171,255)
+                try_to_predict_sex(object)
                 print_results(file_results, object)
                 test_items_count += 1   #licznik wszystkich elementow
             except Exception as e:
@@ -191,7 +196,8 @@ if __name__ == "__main__":
             sound_object.process_filename(filename = filename, labeled = False)
             sound_object.load_sound()
             try_to_predict_sex(sound_object)
-            print("Dzwięk z pliku {file} należy do {predicted_sex}.".format(file = sound_object.filename, predicted_sex = "kobiety" if sound_object.predicted_sex == 'K' else "mężczyzny"))
+            print("{predicted_sex}".format(predicted_sex="K" if sound_object.predicted_sex == 'K' else "M"))
+            #print("Dzwięk z pliku {file} należy do {predicted_sex}.".format(file = sound_object.filename, predicted_sex = "kobiety" if sound_object.predicted_sex == 'K' else "mężczyzny"))
         except Exception as e:
             if (len(e.args) >= 1):
                 print("Plik {file}, blad: {err}".format(file=filename, err=e.args[0]))
